@@ -1,37 +1,61 @@
 # Caching and Queues
 
-> Part of the [Full-Stack Learning Curriculum](https://github.com/yogthesharma/curriculum) · **Phase:** Backend
+Standalone learning repo. Work here on its own — no other repos required.
 
-## What you'll learn
+**Phase (for your own roadmap):** Backend
 
-Redis patterns, Kafka, RabbitMQ, pub/sub, background jobs
+## Context
 
-## Goals
+Caches cut latency; queues absorb load and decouple work. Redis patterns, Kafka/RabbitMQ, pub/sub, and background jobs are the bread and butter of scalable backends — practiced here alone.
 
-- Build a solid mental model of the core ideas
-- Practice with focused exercises and notes
-- Connect concepts back to real full-stack systems
+This repository is the single place for everything related to **Caching and Queues**: notes, exercises, and small projects. Clone it, open it, and treat it as a complete unit of study.
 
-## Structure
+## Scope
+
+- Redis caching patterns (aside, write-through, TTLs, stampedes)
+- Message queues: Kafka and RabbitMQ roles
+- Pub/sub vs work queues
+- Background jobs and retries / dead-letter ideas
+- Cache invalidation and consistency tradeoffs
+
+## Outcomes
+
+When you are done with this repo, you should be able to:
+
+- Pick cache vs queue for a given problem
+- Implement a small cached read path and a background job
+- Explain failure modes (stampede, poison messages, at-least-once)
+
+## How to work in this repo
+
+1. Read / write concept notes under `notes/`.
+2. Solve practice problems under `exercises/`.
+3. Ship at least one small project under `projects/` that forces the ideas to stick.
+4. Tick the checklist below as you go.
+
+You do not need any other curriculum repo open while you work here.
+
+## Layout
 
 ```
 caching-and-queues/
-├── README.md          # You are here
-├── notes/             # Concept write-ups (add as you go)
-├── exercises/         # Hands-on practice
-└── projects/          # Small end-to-end builds
+├── README.md       # Context and checklist (this file)
+├── notes/          # Concept write-ups
+├── exercises/      # Practice problems and solutions
+└── projects/       # Mini builds that apply the topic
 ```
 
 ## Progress
 
-- [ ] Notes started
-- [ ] Core exercises completed
-- [ ] At least one mini-project shipped
+- [ ] Core concepts noted
+- [ ] Exercises completed
+- [ ] Mini-project shipped
+- [ ] Can explain the main ideas without looking anything up
 
 ## Resources
 
-_Add links, books, and courses as you discover them._
+Add books, docs, courses, and articles here as you find them. Keep this list local to this topic.
 
 ---
 
-← Back to [curriculum](https://github.com/yogthesharma/curriculum)
+_This repo is independent. Progress elsewhere does not block work here._
