@@ -271,7 +271,7 @@ Work top to bottom. Each module → notes in `notes/`, drills in `exercises/`, t
 
 ## How to work in this repo
 
-1. Start infra: `cp .env.example .env` then `docker compose up -d` (when those files exist).
+1. Start infra: `cp .env.example .env` then `docker compose up -d --wait`.
 2. Read a concept under `notes/<module>/`.
 3. Do the **same-named** file under `exercises/<module>/`.
 4. Run API/worker with Node; use `redis-cli` via Docker for inspection.
@@ -287,7 +287,7 @@ You do not need any other curriculum repo open while you work here.
 ```
 caching-and-queues/
 ├── README.md                 # Context and curriculum (this file)
-├── docker-compose.yml        # redis-cache + redis-queue (to be added with Module 0)
+├── docker-compose.yml        # redis-cache (6379) + redis-queue (6380)
 ├── .env.example
 ├── notes/
 │   ├── 00-setup/
@@ -305,6 +305,7 @@ caching-and-queues/
 │   └── 12-app-lab/
 ├── exercises/                # Same module/concept filenames as notes/
 ├── apps/                     # Module checkpoints (Node + Fastify)
+│   └── m00-setup/            # Health check + set/get against both Redis instances
 └── projects/                 # Optional mini-projects
 ```
 

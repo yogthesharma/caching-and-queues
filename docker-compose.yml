@@ -1,0 +1,45 @@
+services:
+  redis-cache:
+    image: redis:8-alpine
+    container_name: caching-and-queues-redis-cache
+    restart: unless-stopped
+    ports:
+      - "${REDIS_CACHE_PORT:-6379}:6379"
+    command:
+      - redis-server
+      - --maxmemory
+      - 64mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-queue:
+    image: redis:8-alpine
+    container_name: caching-and-queues-redis-queue
+    restart: unless-stopped
+    ports:
+      - "${REDIS_QUEUE_PORT:-6380}:6379"
+    command:
+      - redis-server
+      - --maxmemory-policy
+      - noeviction
+      - --appendonly
+      - "yes"
+    volumes:
+      - redis-queue-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  redis-queue-data:
