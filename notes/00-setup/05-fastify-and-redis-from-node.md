@@ -49,7 +49,7 @@ const cache = new Redis(process.env.REDIS_CACHE_URL, { maxRetriesPerRequest: 1 }
 
 ## One client per process (for now)
 
-Create clients **once at startup** and reuse them in every request — same rule as the `pg` Pool. A Redis client multiplexes many concurrent commands over one connection, so you don’t need a pool for normal commands.
+Create clients **once at startup** and reuse them in every request — same rule as the `pg` Pool. ioredis sends concurrent commands down one connection without waiting for each reply (pipelining), and Redis answers them in order, so one connection handles many requests at once. You don’t need a pool for normal commands.
 
 Exceptions that need their **own** connection (coming later):
 

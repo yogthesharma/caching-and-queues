@@ -16,6 +16,7 @@ From the **repo root**:
    - `GET survivor` on both. Which one kept the key, and why?
 6. Answer: what does `docker compose down -v` delete in this repo that `docker compose down` does not?
 7. Answer: why would it be dangerous to store BullMQ jobs in `redis-cache`?
+8. Run `docker compose ps` and look at the `PORTS` column. Why does it say `127.0.0.1:6379->6379/tcp` instead of `0.0.0.0:6379->6379/tcp`?
 
 ## Stretch
 
@@ -39,7 +40,7 @@ docker compose exec redis-cache redis-cli CONFIG GET maxmemory-policy   # allkey
 docker compose exec redis-queue redis-cli CONFIG GET maxmemory-policy   # noeviction
 ```
 
-`redis-cache` evicts. `redis-queue` returns an error on writes when memory is full instead of deleting anything.
+`redis-cache` evicts. `redis-queue` returns an `OOM` error on writes once it reaches its 256 MB `maxmemory` instead of deleting anything. (Without a `maxmemory` limit, neither policy would ever kick in.)
 
 5.
 
@@ -51,10 +52,12 @@ docker compose exec redis-cache redis-cli GET survivor   # (nil)
 docker compose exec redis-queue redis-cli GET survivor   # "yes"
 ```
 
-`redis-cache` has persistence off, so a restart empties it. `redis-queue` writes every change to its append-only file (AOF) in the `redis-queue-data` volume and replays it on startup.
+`redis-cache` has persistence off, so a restart empties it. `redis-queue` appends every write to its append-only file (AOF) in the `redis-queue-data` volume (flushed to disk once per second) and replays it on startup.
 
 6. `-v` removes the `redis-queue-data` volume, so all queue data (jobs) is gone. The cache has no volume — it’s empty after any restart anyway.
 7. `redis-cache` is capped at 64 MB with `allkeys-lru`. When cache writes fill memory, Redis would evict least-recently-used keys — including waiting jobs — and those jobs would silently never run. It also doesn’t persist, so a restart loses every queued job.
+
+8. The Compose file publishes ports as `127.0.0.1:...`, so Redis is reachable only from your own machine. The official image has no password and protected mode off; `0.0.0.0` would let any device on your network read or wipe it.
 
 Stretch:
 

@@ -23,7 +23,7 @@ Pick an app you use daily (Instagram, Swiggy, YouTube…). List two things it al
 
 ## Solutions
 
-1. **Cache.** Same answer for everyone, read ~25,000× between changes; a TTL of a minute or two (or invalidate on publish) is harmless.
+1. **Cache.** Same answer for everyone. With two posts a day (~12 hours apart) at 50,000 views/hour, the list is read ~600,000× between changes; a TTL of a minute or two (or invalidate on publish) is harmless.
 2. **Neither.** A balance must be exactly current; it’s a fast indexed query anyway. Caching risks showing money that isn’t there.
 3. **Queue.** CPU-heavy, the user doesn’t need all sizes in the upload response, and retries are useful.
 4. **Neither.** Primary-key lookups are ~1 ms and traffic is tiny — a cache adds invalidation bugs for no gain.

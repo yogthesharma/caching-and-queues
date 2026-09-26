@@ -75,7 +75,7 @@ SCAN 0 MATCH shop:product:* COUNT 100
 Or from the host: `docker compose exec redis-cache redis-cli --scan --pattern 'shop:product:*'`
 
 6. `string`.
-7. A line like `1790000000.123456 [0 172.18.0.1:54012] "GET" "shop:product:1"` — timestamp, client address, and the exact command.
+7. A line like `1790000000.123456 [0 127.0.0.1:54012] "GET" "shop:product:1"` — Unix timestamp, `[database-number client-address]`, and the exact command. (Your Node app would show up with a Docker network address like `172.x.x.x` instead.)
 8.
 
 ```

@@ -80,4 +80,4 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
   });
 }
 
-await app.listen({ port: PORT, host: '0.0.0.0' });
+await app.listen({ port: PORT });
