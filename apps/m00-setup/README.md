@@ -19,6 +19,26 @@ npm run dev        # Fastify on http://localhost:3000
 | `PUT /kv/:key` | Body `{ "value": "...", "ttlSeconds": 30 }` → stores in `redis-cache` |
 | `GET /kv/:key` | Returns value + remaining TTL, or `404` |
 
+## Code layout
+
+```
+src/
+├── config.js          # env vars (fails if .env is missing)
+├── redis/             # pure Redis code — start here
+│   ├── clients.js     # createRedisClient(): connection options in one place
+│   ├── health.js      # ping() with timeout
+│   └── kv.js          # setValue() / getValue(): key prefix + TTL
+├── plugins/
+│   ├── redis.js       # creates clients → app.redis, quits them on close
+│   └── swagger.js     # OpenAPI + /docs
+├── routes/            # HTTP only; calls into redis/
+│   ├── health.js
+│   └── kv.js
+├── app.js             # buildApp(): plugins + routes
+├── server.js          # listen + SIGINT/SIGTERM
+└── smoke.js           # script using redis/ without Fastify
+```
+
 ## API docs
 
 - Swagger UI: <http://localhost:3000/docs>

@@ -2,16 +2,39 @@
 
 ## Goal
 
-Connect to both Redis instances from Node with **`ioredis`**, expose a real health check in Fastify, and shut down cleanly.
+Connect to both Redis instances from Node with **`ioredis`**, expose a real health check in Fastify, shut down cleanly — and keep the Redis code separate from the HTTP code.
 
 ## The app for this module
 
-`apps/m00-setup/`:
+`apps/m00-setup/` is split into layers. Read it in this order:
 
-| File | What it shows |
-|------|---------------|
-| `src/smoke.js` | Plain script: ping both instances, set/get with TTL, read eviction policies |
-| `src/server.js` | Fastify API: `GET /health`, `PUT /kv/:key`, `GET /kv/:key`, graceful shutdown |
+```
+src/
+├── config.js            # 1. Reads env vars; fails loudly if .env is missing
+├── redis/               # 2. Pure Redis code — no Fastify, no HTTP
+│   ├── clients.js       #    createRedisClient(): one place for connection options
+│   ├── health.js        #    ping() with a timeout
+│   └── kv.js            #    setValue() / getValue(): key naming + TTL logic
+├── plugins/             # 3. Fastify wiring
+│   ├── redis.js         #    Creates both clients, exposes app.redis, closes them on shutdown
+│   └── swagger.js       #    OpenAPI spec + /docs UI
+├── routes/              # 4. HTTP only: schemas, status codes, call into redis/
+│   ├── health.js        #    GET /health
+│   └── kv.js            #    PUT /kv/:key, GET /kv/:key
+├── app.js               # 5. buildApp(): registers plugins and routes in order
+├── server.js            # 6. Entry point: build, listen, handle SIGINT/SIGTERM
+└── smoke.js             #    Standalone script reusing redis/clients.js — no Fastify at all
+```
+
+Why split it this way:
+
+| Layer | Knows about | Doesn’t know about |
+|-------|-------------|--------------------|
+| `redis/` | ioredis, key names, TTLs | HTTP, Fastify, status codes |
+| `plugins/redis.js` | Fastify lifecycle (decorate, `onClose`) | What the keys mean |
+| `routes/` | HTTP: params, bodies, 200/404/503 | Redis commands, key prefixes |
+
+So when you want to see *what Redis actually does*, open `src/redis/`. When you want to see *what the API returns*, open `src/routes/`. `smoke.js` proves the Redis layer works without any web server. Later modules add a `worker.js` that reuses the same `redis/` code.
 
 Run it:
 
@@ -34,22 +57,55 @@ Scripts use Node’s built-in `--env-file=../../.env`, so there’s no `dotenv` 
 
 Both are fine. We use `ioredis` everywhere so the cache code and BullMQ (Module 7) share one library.
 
-## Connecting
+## Connecting — `src/redis/clients.js`
 
 ```js
-import { Redis } from 'ioredis';
-
-const cache = new Redis(process.env.REDIS_CACHE_URL, { maxRetriesPerRequest: 1 });
+export function createRedisClient(url, name, logger = console) {
+  const client = new Redis(url, {
+    maxRetriesPerRequest: 1,
+    connectionName: name,
+  });
+  client.on('error', (err) => logger.warn({ err }, `${name} error`));
+  return client;
+}
 ```
 
 - ioredis connects in the background and **reconnects automatically** if Redis restarts.
 - By default, while disconnected it **queues commands** and retries each up to 20 times — a request could hang for a long time. `maxRetriesPerRequest: 1` makes API commands fail fast so Fastify can return an error instead.
 - BullMQ workers need the opposite (`maxRetriesPerRequest: null`) — they should wait for Redis to come back. Module 7.
+- `connectionName` labels the connection inside Redis. Run `docker compose exec redis-cache redis-cli CLIENT LIST` while the API runs and you’ll see `name=m00-api:cache`.
 - Always attach an `'error'` listener. Without one, connection errors are printed as unhandled noise.
 
-## One client per process (for now)
+Why a factory function: every client in the app gets the same options from one place. When BullMQ needs different options in Module 7, you’ll see exactly where and why they differ.
+
+### Missing `.env` — `src/config.js`
+
+If `REDIS_QUEUE_URL` were undefined, `new Redis(undefined)` silently connects to `localhost:6379` — the **cache** instance. Your “queue” data would land in the evicting, non-persistent Redis without any error. `config.js` throws at startup instead: `Missing env var REDIS_CACHE_URL. Copy .env.example to .env at the repo root.`
+
+## One client per process (for now) — `src/plugins/redis.js`
+
+```js
+async function redisPlugin(app, { cacheUrl, queueUrl }) {
+  const cache = createRedisClient(cacheUrl, 'm00-api:cache', app.log);
+  const queue = createRedisClient(queueUrl, 'm00-api:queue', app.log);
+
+  app.decorate('redis', { cache, queue });
+
+  app.addHook('onClose', async () => {
+    await Promise.all([cache.quit(), queue.quit()]);
+  });
+}
+
+export default fp(redisPlugin, { name: 'redis' });
+```
 
 Create clients **once at startup** and reuse them in every request — same rule as the `pg` Pool. ioredis sends concurrent commands down one connection without waiting for each reply (pipelining), and Redis answers them in order, so one connection handles many requests at once. You don’t need a pool for normal commands.
+
+Fastify details:
+
+- `app.decorate('redis', …)` attaches the clients to the app, so routes use `app.redis.cache` instead of importing globals.
+- Fastify plugins are **encapsulated**: a decoration added inside a plugin is normally visible only inside it. Wrapping with `fastify-plugin` (`fp`) lifts it to the parent, so every route can see `app.redis`.
+- The plugin that **creates** the clients also **closes** them. Whoever opens a resource owns shutting it down.
 
 Exceptions that need their **own** connection (coming later):
 
@@ -57,54 +113,58 @@ Exceptions that need their **own** connection (coming later):
 - Pub/sub subscribers (Module 9)
 - BullMQ workers (Module 7 — BullMQ manages this)
 
-## A real health check
+## Redis operations — `src/redis/kv.js`
 
 ```js
-app.get('/health', async (request, reply) => {
-  const [cacheStatus, queueStatus] = await Promise.all([ping(cache), ping(queue)]);
-  const ok = cacheStatus === 'up' && queueStatus === 'up';
-  reply.code(ok ? 200 : 503);
-  return { status: ok ? 'ok' : 'degraded', redisCache: cacheStatus, redisQueue: queueStatus };
-});
+const KEY_PREFIX = 'm00:kv:';
+
+export async function setValue(redis, key, value, ttlSeconds) {
+  if (ttlSeconds) {
+    await redis.set(kvKey(key), value, 'EX', ttlSeconds);
+  } else {
+    await redis.set(kvKey(key), value);
+  }
+}
 ```
 
-- Pings each dependency with a **timeout** (500 ms) so a stuck Redis can’t hang the health check.
+- The key prefix lives here and nowhere else. Routes pass `greeting`; only this file knows it becomes `m00:kv:greeting`.
+- Functions take the client as a parameter (`redis`) instead of importing it. The same function works with any client — the API’s, a script’s, or a test’s.
+
+## A real health check — `src/redis/health.js` + `src/routes/health.js`
+
+```js
+const [redisCache, redisQueue] = await Promise.all([ping(app.redis.cache), ping(app.redis.queue)]);
+const ok = redisCache === 'up' && redisQueue === 'up';
+reply.code(ok ? 200 : 503);
+return { status: ok ? 'ok' : 'degraded', redisCache, redisQueue };
+```
+
+- `ping()` races each `PING` against a **timeout** (500 ms) so a stuck Redis can’t hang the health check.
 - Returns **503** when something is down. Load balancers and Kubernetes use the status code — not the JSON — to stop sending traffic to a broken instance.
 
 Try it: `docker compose stop redis-queue`, hit `/health` (503), `docker compose start redis-queue`, hit it again (200). ioredis reconnects on its own.
 
-## Graceful shutdown
+## Graceful shutdown — `src/server.js`
 
 ```js
-app.addHook('onClose', async () => {
-  await Promise.all([cache.quit(), queue.quit()]);
-});
+const app = await buildApp(config);
 
-process.once('SIGTERM', async () => {
-  await app.close();
-  process.exit(0);
-});
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.once(signal, async () => {
+    await app.close();
+    process.exit(0);
+  });
+}
 ```
 
-- `app.close()` stops accepting new requests, lets in-flight ones finish, then runs `onClose` hooks.
+- `app.close()` stops accepting new requests, lets in-flight ones finish, then runs `onClose` hooks — including the Redis plugin’s `quit()`.
 - `quit()` sends Redis a polite `QUIT` after pending commands complete (vs `disconnect()`, which drops immediately).
 - Docker and Kubernetes send `SIGTERM` on deploys; `Ctrl+C` sends `SIGINT`. Handle both.
 
+`buildApp()` lives in `app.js`, separate from `listen()` in `server.js`. That lets tests build the app and send fake requests without opening a port (Module 12).
+
 This matters much more for workers (Module 7): a worker killed mid-job without shutdown handling leaves that job half-done.
-
-## Planned layout for bigger apps
-
-```
-apps/<module-app>/
-├── src/
-│   ├── server.js     # Fastify API process
-│   ├── worker.js     # Background job process (Modules 6+)
-│   └── redis.js      # Shared client factory
-└── package.json      # "start:api" and "start:worker" scripts
-```
-
-Same codebase, two processes, started and scaled separately.
 
 ## Takeaway
 
-Create each ioredis client once, fail fast in the API (`maxRetriesPerRequest: 1`), make `/health` return 503 when a dependency is down, and close connections on `SIGTERM`/`SIGINT`.
+Keep Redis code in `redis/`, Fastify wiring in `plugins/`, and HTTP in `routes/`. Create each ioredis client once through a factory, fail fast in the API (`maxRetriesPerRequest: 1`), make `/health` return 503 when a dependency is down, and close connections on `SIGTERM`/`SIGINT`.

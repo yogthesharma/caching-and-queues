@@ -16,10 +16,12 @@ From `apps/m00-setup/`:
 4. Stop the queue Redis (`docker compose stop redis-queue` from the repo root) and call `/health`. What status and body do you get? Start it again and call `/health` once more — did you need to restart the API?
 5. Press `Ctrl+C` on the API. Which log line shows the shutdown was graceful?
 6. Answer: why does the API use `maxRetriesPerRequest: 1` instead of the ioredis default?
+7. While the API is running, run `docker compose exec redis-cache redis-cli CLIENT LIST`. Which line is the API’s connection, and which file set that name?
+8. Answer: which file would you change to rename every key from `m00:kv:*` to `demo:kv:*`? Would any route file change?
 
 ## Stretch
 
-Add `DELETE /kv/:key` that returns `204` if a key was deleted and `404` if it didn’t exist. (Hint: `DEL` returns how many keys it removed.)
+Add `DELETE /kv/:key` that returns `204` if a key was deleted and `404` if it didn’t exist. (Hint: `DEL` returns how many keys it removed.) Keep the layers: the Redis call goes in `src/redis/kv.js`, the HTTP part in `src/routes/kv.js`.
 
 ---
 
@@ -49,13 +51,26 @@ docker compose exec redis-cache redis-cli --scan --pattern 'm00:*'
 4. `503` with `{"status":"degraded","redisCache":"up","redisQueue":"down"}`. After `docker compose start redis-queue`, `/health` returns `200` again **without** restarting the API — ioredis reconnects automatically.
 5. `"signal":"SIGINT","msg":"shutting down"`, then the process exits after Fastify closes and both Redis clients `quit()`.
 6. The default (20 retries, with commands queued while disconnected) can make a request hang for a long time when Redis is down. For an HTTP API it’s better to fail fast and return an error; the health check also uses its own 500 ms timeout.
+7. The line containing `name=m00-api:cache`. The name is passed to `createRedisClient()` in `src/plugins/redis.js`, which sets ioredis’s `connectionName` option in `src/redis/clients.js`.
+8. Only `KEY_PREFIX` in `src/redis/kv.js`. No route file changes — routes never see the prefix. (The OpenAPI description in `src/routes/kv.js` mentions it, so you’d update that text too.)
 
 Stretch:
 
 ```js
-app.delete('/kv/:key', async (request, reply) => {
-  const removed = await cache.del(KEY_PREFIX + request.params.key);
-  if (removed === 0) {
+// src/redis/kv.js
+export async function deleteValue(redis, key) {
+  const removed = await redis.del(kvKey(key));
+  return removed > 0;
+}
+```
+
+```js
+// src/routes/kv.js — inside kvRoutes(), and add deleteValue to the import
+app.delete('/kv/:key', {
+  schema: { summary: 'Delete a key', tags: ['kv'], params: keyParams },
+}, async (request, reply) => {
+  const deleted = await deleteValue(app.redis.cache, request.params.key);
+  if (!deleted) {
     reply.code(404);
     return { error: 'not found' };
   }

@@ -1,7 +1,8 @@
-import { Redis } from 'ioredis';
+import { config } from './config.js';
+import { createRedisClient } from './redis/clients.js';
 
-const cache = new Redis(process.env.REDIS_CACHE_URL);
-const queue = new Redis(process.env.REDIS_QUEUE_URL);
+const cache = createRedisClient(config.redisCacheUrl, 'm00-smoke:cache');
+const queue = createRedisClient(config.redisQueueUrl, 'm00-smoke:queue');
 
 try {
   console.log('cache PING ->', await cache.ping());
