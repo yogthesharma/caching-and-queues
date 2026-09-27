@@ -1,0 +1,34 @@
+info:
+  name: Read product again (L1)
+  type: http
+  seq: 3
+
+http:
+  method: GET
+  url: "{{baseUrl}}/products/:id"
+  params:
+    - name: id
+      value: "1"
+      type: path
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("served from in-process memory", function () {
+          expect(res.headers["x-cache"]).to.equal("L1");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  Same request, sent right after "Read product". Wait more than 5 seconds and it becomes `L2`.

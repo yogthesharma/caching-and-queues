@@ -1,0 +1,15 @@
+info:
+  name: m01-caching-fundamentals
+  type: folder
+  seq: 2
+
+request:
+  auth: inherit
+
+docs: |-
+  Module 1 app: `apps/m01-caching-fundamentals` (`npm run dev`).
+
+  Run the folder top to bottom within a few seconds (L1 lives 5 seconds): cold read, warm read,
+  conditional read (304), update, read after update, missing id, stats.
+
+  To start truly cold, run `npm run reset` in the app folder (seed data, no Redis keys), then restart the app to clear L1.

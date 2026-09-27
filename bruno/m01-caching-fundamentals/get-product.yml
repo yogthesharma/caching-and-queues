@@ -1,0 +1,45 @@
+info:
+  name: Read product
+  type: http
+  seq: 2
+
+http:
+  method: GET
+  url: "{{baseUrl}}/products/:id"
+  params:
+    - name: id
+      value: "1"
+      type: path
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("says which layer answered", function () {
+          expect(["L1", "L2", "MISS"]).to.include(res.headers["x-cache"]);
+        });
+        test("sends HTTP caching headers", function () {
+          expect(res.headers["etag"]).to.be.a("string");
+          expect(res.headers["cache-control"]).to.equal("public, max-age=10");
+        });
+        bru.setVar("productEtag", res.headers["etag"]);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  Check the `X-Cache` response header and the response time:
+
+  - `MISS` (~150 ms): read from the database, then stored in Redis and L1
+  - `L1` (~1 ms): served from this process's memory (lives 5 seconds)
+  - `L2` (~1 ms): served from Redis (lives 60 seconds), copied into L1
+
+  Saves the `ETag` as `productEtag` for the conditional request.

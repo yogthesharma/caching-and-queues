@@ -1,0 +1,40 @@
+info:
+  name: Update product
+  type: http
+  seq: 5
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/products/:id"
+  params:
+    - name: id
+      value: "1"
+      type: path
+  body:
+    type: json
+    data: |-
+      {
+        "priceCents": 6999
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("returns the updated row", function () {
+          expect(res.body.priceCents).to.equal(6999);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  Updates the database, then deletes `m01:product:v1:1` from Redis and this process's L1 entry.

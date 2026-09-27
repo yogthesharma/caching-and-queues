@@ -341,7 +341,8 @@ caching-and-queues/
 │   └── 12-app-lab/
 ├── exercises/                # Same module/concept filenames as notes/
 ├── apps/                     # Module checkpoints (Node + Fastify), each with /docs (OpenAPI)
-│   └── m00-setup/            # Health check + set/get against both Redis instances
+│   ├── m00-setup/            # Health check + set/get against both Redis instances
+│   └── m01-caching-fundamentals/  # Cache-aside over lru-cache (L1) + Redis (L2), ETag / Cache-Control
 ├── bruno/                    # Bruno collection: one folder per module app
 └── projects/                 # Optional mini-projects
 ```
@@ -352,8 +353,8 @@ caching-and-queues/
 
 ### Modules
 
-- [ ] 0 — Setup & mental model
-  - [ ] **Before Module 1:** walk through the `apps/m00-setup` code once more, in the reading order from `notes/00-setup/05-fastify-and-redis-from-node.md` (`config.js` → `redis/` → `plugins/` → `routes/` → `app.js` → `server.js`)
+- [x] 0 — Setup & mental model
+  - [x] **Before Module 1:** walk through the `apps/m00-setup` code once more, in the reading order from `notes/00-setup/05-fastify-and-redis-from-node.md` (`config.js` → `redis/` → `plugins/` → `routes/` → `app.js` → `server.js`)
 - [ ] 1 — Caching fundamentals
 - [ ] 2 — Redis data structures
 - [ ] 3 — Caching in Fastify

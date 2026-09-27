@@ -1,0 +1,41 @@
+info:
+  name: Read after update (MISS)
+  type: http
+  seq: 6
+
+http:
+  method: GET
+  url: "{{baseUrl}}/products/:id"
+  params:
+    - name: id
+      value: "1"
+      type: path
+  headers:
+    - name: If-None-Match
+      value: "{{productEtag}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  scripts:
+    - type: tests
+      code: |-
+        test("cached copies were dropped, so it reads the database", function () {
+          expect(res.headers["x-cache"]).to.equal("MISS");
+        });
+        test("returns the new price and a new ETag", function () {
+          expect(res.body.priceCents).to.equal(6999);
+          expect(res.headers["etag"]).to.not.equal(bru.getVar("productEtag"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  Sends the old ETag again. The product changed, so the ETag no longer matches: `200` with the new body instead of `304`.

@@ -60,18 +60,21 @@ Both are fine. We use `ioredis` everywhere so the cache code and BullMQ (Module 
 ## Connecting — `src/redis/clients.js`
 
 ```js
-export function createRedisClient(url, name, logger = console) {
+export function createRedisClient(url, name, logger = console, options = {}) {
   const client = new Redis(url, {
     maxRetriesPerRequest: 1,
     connectionName: name,
+    ...options,
   });
   client.on('error', (err) => logger.warn({ err }, `${name} error`));
   return client;
 }
 ```
 
-- ioredis connects in the background and **reconnects automatically** if Redis restarts.
-- By default, while disconnected it **queues commands** and retries each up to 20 times — a request could hang for a long time. `maxRetriesPerRequest: 1` makes API commands fail fast so Fastify can return an error instead.
+- ioredis connects in the background and **reconnects automatically** if Redis restarts. Reconnect attempts back off: tens of milliseconds apart at first, growing to 2 seconds.
+- While disconnected, ioredis holds commands in an **offline queue** and sends them once it reconnects. Each command gives up after `maxRetriesPerRequest` failed reconnect attempts (default 20). `maxRetriesPerRequest: 1` cuts that down, but a command still waits for the *next* attempt, which can be seconds away. Measured on this app with Redis stopped: `GET /kv` took 0.6 s right after the stop and **8.7 s** a few seconds later.
+- To really fail fast, the API’s clients also pass `enableOfflineQueue: false` (in `src/plugins/redis.js`). While disconnected, every command is rejected **immediately**, and the same request fails in ~2 ms with a `500`.
+- `smoke.js` keeps the offline queue. It sends its first command before the connection is even open, and the queue is what holds that command until it is. That’s why the options are a parameter of the factory rather than hard-coded.
 - BullMQ workers need the opposite (`maxRetriesPerRequest: null`) — they should wait for Redis to come back. Module 7.
 - `connectionName` labels the connection inside Redis. Run `docker compose exec redis-cache redis-cli CLIENT LIST` while the API runs and you’ll see `name=m00-api:cache`.
 - Always attach an `'error'` listener. Without one, connection errors are printed as unhandled noise.
@@ -85,14 +88,22 @@ If `REDIS_QUEUE_URL` were undefined, `new Redis(undefined)` silently connects to
 ## One client per process (for now) — `src/plugins/redis.js`
 
 ```js
+const API_OPTIONS = { enableOfflineQueue: false };
+
 async function redisPlugin(app, { cacheUrl, queueUrl }) {
-  const cache = createRedisClient(cacheUrl, 'm00-api:cache', app.log);
-  const queue = createRedisClient(queueUrl, 'm00-api:queue', app.log);
+  const cache = createRedisClient(cacheUrl, 'm00-api:cache', app.log, API_OPTIONS);
+  const queue = createRedisClient(queueUrl, 'm00-api:queue', app.log, API_OPTIONS);
 
   app.decorate('redis', { cache, queue });
 
   app.addHook('onClose', async () => {
-    await Promise.all([cache.quit(), queue.quit()]);
+    await Promise.all([cache, queue].map(async (client) => {
+      try {
+        await client.quit();
+      } catch {
+        client.disconnect();
+      }
+    }));
   });
 }
 
@@ -106,6 +117,7 @@ Fastify details:
 - `app.decorate('redis', …)` attaches the clients to the app, so routes use `app.redis.cache` instead of importing globals.
 - Fastify plugins are **encapsulated**: a decoration added inside a plugin is normally visible only inside it. Wrapping with `fastify-plugin` (`fp`) lifts it to the parent, so every route can see `app.redis`.
 - The plugin that **creates** the clients also **closes** them. Whoever opens a resource owns shutting it down.
+- `quit()` is itself a Redis command (`QUIT`). Without the offline queue it’s rejected while Redis is down, which would crash shutdown, so the hook falls back to `disconnect()` (drop the socket right away).
 
 Exceptions that need their **own** connection (coming later):
 
@@ -167,4 +179,4 @@ This matters much more for workers (Module 7): a worker killed mid-job without s
 
 ## Takeaway
 
-Keep Redis code in `redis/`, Fastify wiring in `plugins/`, and HTTP in `routes/`. Create each ioredis client once through a factory, fail fast in the API (`maxRetriesPerRequest: 1`), make `/health` return 503 when a dependency is down, and close connections on `SIGTERM`/`SIGINT`.
+Keep Redis code in `redis/`, Fastify wiring in `plugins/`, and HTTP in `routes/`. Create each ioredis client once through a factory, fail fast in the API (`enableOfflineQueue: false` plus `maxRetriesPerRequest: 1`), make `/health` return 503 when a dependency is down, and close connections on `SIGTERM`/`SIGINT`.
