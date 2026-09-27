@@ -19,4 +19,11 @@ npm run dev        # Fastify on http://localhost:3000
 | `PUT /kv/:key` | Body `{ "value": "...", "ttlSeconds": 30 }` → stores in `redis-cache` |
 | `GET /kv/:key` | Returns value + remaining TTL, or `404` |
 
+## API docs
+
+- Swagger UI: <http://localhost:3000/docs>
+- OpenAPI JSON (live, generated from the route schemas): <http://localhost:3000/docs/json>
+- Saved copy: [`openapi.json`](./openapi.json) — refresh with `npm run openapi` while the server is running
+- Bruno requests: `bruno/m00-setup/` at the repo root
+
 Notes: `notes/00-setup/05-fastify-and-redis-from-node.md`

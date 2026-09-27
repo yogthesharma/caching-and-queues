@@ -282,6 +282,41 @@ Notes and exercises share paths: `notes/01-caching-fundamentals/...` ↔ `exerci
 
 You do not need any other curriculum repo open while you work here.
 
+## Tools
+
+### Beekeeper Studio (view Redis)
+
+Redis support is free in the Community edition (5.4+). Create two connections, type **Redis**:
+
+| Connection name | Host | Port | Username | Password | TLS |
+|-----------------|------|------|----------|----------|-----|
+| `cq redis-cache` | `127.0.0.1` | `6379` | *(blank)* | *(blank)* | off |
+| `cq redis-queue` | `127.0.0.1` | `6380` | *(blank)* | *(blank)* | off |
+
+Containers must be running (`docker compose up -d --wait`). Both ports are bound to `127.0.0.1`, so this works only from this machine. Treat `redis-queue` as read-only when browsing — deleting keys there deletes jobs.
+
+### Bruno (call the APIs)
+
+The collection lives in `bruno/` (OpenCollection YAML, Bruno 3.1+), one folder per module app.
+
+1. Bruno → **Open Collection** → select the `bruno/` folder.
+2. Pick the **local** environment (top right). `baseUrl` = `http://localhost:3000`.
+3. Start the module’s app (`npm run dev` in `apps/<module>`), then send requests — or right-click a folder → **Run** to execute all requests with their checks.
+
+Headless (same checks, no GUI):
+
+```bash
+cd bruno && npx @usebruno/cli run m00-setup --env local
+```
+
+Every app also serves Swagger UI at `/docs` and its OpenAPI spec at `/docs/json` — Bruno can import that URL directly (**Import Collection → OpenAPI**) if you ever want a generated collection.
+
+**Flatpak Bruno on Linux:** the Flatpak can only read your home folder by default. If this repo lives elsewhere (e.g. `/run/media/...`), grant access once:
+
+```bash
+flatpak override --user --filesystem=/run/media/$USER/HDD com.usebruno.Bruno
+```
+
 ## Layout
 
 ```
@@ -304,8 +339,9 @@ caching-and-queues/
 │   ├── 11-operations-lite/
 │   └── 12-app-lab/
 ├── exercises/                # Same module/concept filenames as notes/
-├── apps/                     # Module checkpoints (Node + Fastify)
+├── apps/                     # Module checkpoints (Node + Fastify), each with /docs (OpenAPI)
 │   └── m00-setup/            # Health check + set/get against both Redis instances
+├── bruno/                    # Bruno collection: one folder per module app
 └── projects/                 # Optional mini-projects
 ```
 

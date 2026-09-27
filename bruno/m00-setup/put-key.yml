@@ -1,0 +1,39 @@
+info:
+  name: Store key (with TTL)
+  type: http
+  seq: 2
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/kv/:key"
+  params:
+    - name: key
+      value: greeting
+      type: path
+      description: Stored in Redis as m00:kv:<key>
+  body:
+    type: json
+    data: |-
+      {
+        "value": "hello from bruno",
+        "ttlSeconds": 60
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  Stores `m00:kv:greeting` in `redis-cache` with a 60-second TTL. Remove `ttlSeconds` for no expiry.
+
+  Check it in Beekeeper Studio (redis-cache connection) or with
+  `docker compose exec redis-cache redis-cli TTL m00:kv:greeting`.

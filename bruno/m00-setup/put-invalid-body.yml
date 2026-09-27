@@ -1,0 +1,37 @@
+info:
+  name: Store key with invalid body (400)
+  type: http
+  seq: 5
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/kv/:key"
+  params:
+    - name: key
+      value: x
+      type: path
+  body:
+    type: json
+    data: "{}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+  scripts:
+    - type: tests
+      code: |-
+        test("rejected by Fastify schema validation", function () {
+          expect(res.body.code).to.equal("FST_ERR_VALIDATION");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  The body schema requires `value`. Fastify rejects the request before the handler runs.

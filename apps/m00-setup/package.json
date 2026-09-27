@@ -5,9 +5,12 @@
   "scripts": {
     "start": "node --env-file=../../.env src/server.js",
     "dev": "node --watch --env-file=../../.env src/server.js",
-    "smoke": "node --env-file=../../.env src/smoke.js"
+    "smoke": "node --env-file=../../.env src/smoke.js",
+    "openapi": "curl -sf http://localhost:3000/docs/json -o openapi.json"
   },
   "dependencies": {
+    "@fastify/swagger": "^9.9.0",
+    "@fastify/swagger-ui": "^6.1.1",
     "fastify": "^5.12.5",
     "ioredis": "^6.0.0"
   }

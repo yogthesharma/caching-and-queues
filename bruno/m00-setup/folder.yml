@@ -1,0 +1,12 @@
+info:
+  name: m00-setup
+  type: folder
+  seq: 1
+
+request:
+  auth: inherit
+
+docs: |-
+  Module 0 app: `apps/m00-setup` (`npm run dev`).
+
+  Run the folder top to bottom: store a key, read it, read a missing key, send an invalid body.
