@@ -300,8 +300,9 @@ Containers must be running (`docker compose up -d --wait`). Both ports are bound
 The collection lives in `bruno/` (OpenCollection YAML, Bruno 3.1+), one folder per module app.
 
 1. Bruno → **Open Collection** → select the `bruno/` folder.
-2. Pick the **local** environment (top right). `baseUrl` = `http://localhost:3000`.
-3. Start the module’s app (`npm run dev` in `apps/<module>`), then send requests — or right-click a folder → **Run** to execute all requests with their checks.
+2. Start the module’s app (`npm run dev` in `apps/<module>`), then send requests — or right-click a folder → **Run** to execute all requests with their checks.
+
+`baseUrl` defaults to `http://localhost:3000` (a collection variable in `bruno/opencollection.yml`), so no environment needs to be selected. To point at another port, select the **local** environment and edit its `baseUrl` — environment values override the collection default. Don’t set `baseUrl` on individual requests: request variables beat environments, so that request would ignore the environment.
 
 Headless (same checks, no GUI):
 

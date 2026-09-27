@@ -4,11 +4,18 @@ info:
   name: caching-and-queues
   version: "1"
 
+request:
+  variables:
+    - name: baseUrl
+      value: http://localhost:3000
+      description: Default when no environment is selected; an environment's baseUrl overrides it.
+
 docs:
   content: |-
     API requests for every module app under `apps/`. One folder per module.
 
-    Select the **local** environment, start the module's app (`npm run dev` in `apps/<module>`), then send requests.
+    Start the module's app (`npm run dev` in `apps/<module>`), then send requests. `baseUrl` defaults to
+    `http://localhost:3000` from the collection variables, so no environment is required.
     Right-click a folder → **Run** to execute all of its requests and checks in order.
   type: text/markdown
 bundled: false
