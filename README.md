@@ -353,6 +353,7 @@ caching-and-queues/
 ### Modules
 
 - [ ] 0 — Setup & mental model
+  - [ ] **Before Module 1:** walk through the `apps/m00-setup` code once more, in the reading order from `notes/00-setup/05-fastify-and-redis-from-node.md` (`config.js` → `redis/` → `plugins/` → `routes/` → `app.js` → `server.js`)
 - [ ] 1 — Caching fundamentals
 - [ ] 2 — Redis data structures
 - [ ] 3 — Caching in Fastify

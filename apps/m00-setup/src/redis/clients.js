@@ -7,6 +7,7 @@ export function createRedisClient(url, name, logger = console) {
     // Shows up in `CLIENT LIST`, so you can tell which process owns which connection.
     connectionName: name,
   });
+  // error handling here
   client.on('error', (err) => logger.warn({ err }, `${name} error`));
   return client;
 }
